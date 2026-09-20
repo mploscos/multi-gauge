@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MultiGauge demo</title>
+    <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+    <main>
+        <header class="page-header">
+            <div>
+                <span class="eyebrow">WEBGPU INSTRUMENTS</span>
+                <h1>MultiGauge</h1>
+                <p>A tiny, fast instrument panel for realtime signals.</p>
+            </div>
+            <p class="interaction-hint">Drag to move · resize from any edge</p>
+        </header>
+        <section class="primary panel-shell">
+            <canvas id="vehicle" aria-label="Vehicle telemetry panel"></canvas>
+        </section>
+        <section class="secondary">
+            <div class="panel-shell">
+                <canvas id="power" aria-label="Power system panel"></canvas>
+            </div>
+            <aside>
+                <span class="eyebrow">SHARED RUNTIME</span>
+                <h2>Two canvases. One device.</h2>
+                <p>Both panels share GPU pipelines, glyphs, icons and the device while retaining independent schedules.</p>
+                <dl>
+                    <div><dt>Vehicle renders</dt><dd id="vehicle-renders">0</dd></div>
+                    <div><dt>Power renders</dt><dd id="power-renders">0</dd></div>
+                    <div><dt>Runtime generation</dt><dd id="runtime-generation">1</dd></div>
+                </dl>
+                <a href="../benchmark/">Open benchmark →</a>
+            </aside>
+        </section>
+        <p id="error" role="alert"></p>
+    </main>
+    <script type="module" src="./main.js"></script>
+</body>
+</html>

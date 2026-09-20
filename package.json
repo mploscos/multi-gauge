@@ -1,0 +1,29 @@
+{
+    "name": "multi-gauge",
+    "version": "0.1.0",
+    "description": "A tiny, fast WebGPU instrument panel for realtime signals.",
+    "type": "module",
+    "exports": {
+        ".": "./src/index.js"
+    },
+    "files": [
+        "src",
+        "docs/multigauge-demo.png",
+        "README.md",
+        "LICENSE"
+    ],
+    "scripts": {
+        "test": "node --test",
+        "demo": "python3 -m http.server 8080 --bind localhost"
+    },
+    "keywords": [
+        "webgpu",
+        "gauge",
+        "telemetry",
+        "hmi"
+    ],
+    "license": "MIT",
+    "engines": {
+        "node": ">=20"
+    }
+}

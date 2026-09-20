@@ -1,0 +1,54 @@
+:root {
+    color-scheme: dark;
+    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    background: #04090c;
+    color: #dceff3;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    min-width: 320px;
+    background:
+        radial-gradient(circle at 20% 0%, rgba(0, 234, 255, .08), transparent 32rem),
+        #04090c;
+}
+
+main { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 52px 0 80px; }
+
+.page-header { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 26px; }
+h1 { margin: 5px 0 2px; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -.05em; }
+h2 { margin: 8px 0; font-size: 1.55rem; }
+p { color: #78909a; line-height: 1.6; }
+.eyebrow { color: #00eaff; font: 700 11px/1 ui-monospace, monospace; letter-spacing: .18em; }
+.interaction-hint { margin: 0 0 4px; font: 500 11px/1.4 ui-monospace, monospace; }
+
+button, a {
+    border: 1px solid #24515d;
+    border-radius: 6px;
+    background: #0b171c;
+    color: #bceff5;
+    padding: 10px 14px;
+    font: 600 12px ui-monospace, monospace;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+button:hover, a:hover { border-color: #00eaff; color: white; }
+.panel-shell { position: relative; overflow: hidden; border: 1px solid #12272e; border-radius: 12px; background: #071014; }
+.primary { height: min(690px, 72vh); min-height: 520px; }
+canvas { display: block; width: 100%; height: 100%; }
+.secondary { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(250px, .8fr); gap: 24px; margin-top: 24px; }
+.secondary .panel-shell { height: 360px; }
+aside { padding: 25px; border: 1px solid #12272e; border-radius: 12px; background: rgba(7, 16, 20, .72); }
+dl { margin: 20px 0 28px; }
+dl div { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #14272e; }
+dt { color: #78909a; font-size: 12px; } dd { margin: 0; color: #e7f7fa; font-family: ui-monospace, monospace; }
+#error { color: #ff4d6d; }
+
+@media (max-width: 760px) {
+    main { width: min(100% - 18px, 1180px); padding-top: 26px; }
+    .secondary { grid-template-columns: 1fr; }
+    .primary { min-height: 650px; }
+}

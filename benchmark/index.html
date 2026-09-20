@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MultiGauge benchmark</title>
+    <link rel="stylesheet" href="../demo/style.css">
+    <style>
+        .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin: 22px 0; }
+        label { color: #78909a; font: 11px ui-monospace, monospace; }
+        select { display: block; margin-top: 6px; padding: 9px; color: #e7f7fa; background: #0b171c; border: 1px solid #24515d; border-radius: 5px; }
+        #stage { display: grid; grid-template-columns: repeat(var(--panels, 1), minmax(0, 1fr)); gap: 4px; height: 680px; }
+        #stage canvas { min-width: 0; min-height: 0; border: 1px solid #12272e; }
+        .metrics { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin: 15px 0; }
+        .metric { padding: 12px; background: #0b171c; border: 1px solid #12272e; border-radius: 6px; }
+        .metric span { display: block; color: #78909a; font: 10px ui-monospace, monospace; }
+        .metric strong { font: 18px ui-monospace, monospace; }
+        @media (max-width: 800px) { .metrics { grid-template-columns: repeat(2, 1fr); } #stage { height: 780px; } }
+    </style>
+</head>
+<body>
+<main>
+    <span class="eyebrow">HONEST BROWSER INSTRUMENTATION</span>
+    <h1>Benchmark</h1>
+    <p>Choose a workload. Counters report application-observed scheduling and CPU command-encoding time; they are not synthetic GPU scores.</p>
+    <div class="controls">
+        <label>Gauge count<select id="count"><option>1</option><option selected>16</option><option>64</option><option>100</option></select></label>
+        <label>Update rate<select id="rate"><option>10</option><option selected>30</option><option>60</option></select></label>
+        <label>Topology<select id="topology"><option value="one">One panel</option><option value="sixteen">16 panels × 1 gauge</option></select></label>
+        <button id="run" type="button">Restart workload</button>
+        <a href="../demo/">← Demo</a>
+    </div>
+    <div class="metrics">
+        <div class="metric"><span>FPS</span><strong id="fps">0</strong></div>
+        <div class="metric"><span>FRAME CPU</span><strong id="frame">0 ms</strong></div>
+        <div class="metric"><span>RENDERS</span><strong id="renders">0</strong></div>
+        <div class="metric"><span>UPDATES</span><strong id="updates">0</strong></div>
+        <div class="metric"><span>COALESCED</span><strong id="coalesced">0</strong></div>
+        <div class="metric"><span>DRAWS / RENDER</span><strong id="draws">0</strong></div>
+        <div class="metric"><span>WRITEBUFFER / RENDER</span><strong id="writes">0</strong></div>
+    </div>
+    <section id="stage"></section>
+    <p id="error" role="alert"></p>
+</main>
+<script type="module" src="./main.js"></script>
+</body>
+</html>
