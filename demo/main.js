@@ -17,8 +17,7 @@ try {
                 id: 'speed', type: 'arc', label: 'SPEED', info: 'Vehicle', unit: 'km/h',
                 min: 0, max: 300, row: 0, col: 0, rowSpan: 2, colSpan: 2,
                 bands: [
-                    { from: 0, to: 120, kind: 'normal'  },
-                    { from: 120, to: 160, kind: 'cruise' },
+                    { from: 0, to: 160, kind: 'normal' },
                     { from: 240, to: 300, kind: 'critical', label: 'CRITICAL'  }
                 ],
                 markers: [{ id: 'target', value: 145, label: 'TARGET' }]

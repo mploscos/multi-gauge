@@ -1,3 +1,11 @@
+export const SEMANTIC_KINDS = Object.freeze([
+    'normal',
+    'warning',
+    'critical',
+    'inactive',
+    'target'
+]);
+
 export const DEFAULT_THEME = Object.freeze({
     background: '#071014',
     surface: '#0c171d',
@@ -9,8 +17,7 @@ export const DEFAULT_THEME = Object.freeze({
     warning: '#ffc857',
     critical: '#ff4d6d',
     inactive: '#40515a',
-    target: '#f3f7a7',
-    cruise: '#6b8cff'
+    target: '#f3f7a7'
 });
 
 /** Parse #rgb, #rrggbb, #rrggbbaa or a numeric RGBA array. */

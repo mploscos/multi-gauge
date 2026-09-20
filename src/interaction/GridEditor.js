@@ -23,6 +23,7 @@ export class GridEditor {
     #frame;
     #parentPosition;
     #panelLayout;
+    #selectedId = null;
 
     constructor(canvas, layout, actions) {
         this.#canvas = canvas;
@@ -62,6 +63,7 @@ export class GridEditor {
         this.#overlay.addEventListener('pointermove', this.#onPointerMove);
         this.#overlay.addEventListener('pointerup', this.#onPointerUp);
         this.#overlay.addEventListener('pointercancel', this.#onPointerCancel);
+        this.#overlay.addEventListener('click', this.#onClick);
         window.addEventListener('keydown', this.#onKeyDown);
     }
 
@@ -97,7 +99,17 @@ export class GridEditor {
             if (!this.#drag) {
                 item.style.transform = 'translate3d(0, 0, 0)';
             }
-            item.style.borderColor = this.#drag?.id === id ? '#00eaff' : 'transparent';
+            item.style.borderColor = this.#drag?.id === id || this.#selectedId === id
+                ? '#00eaff'
+                : 'transparent';
+        }
+    }
+
+    /** Highlight one gauge without changing the layout. */
+    select(id) {
+        this.#selectedId = id ?? null;
+        for (const [gaugeId, item] of this.#nodes) {
+            item.style.borderColor = gaugeId === this.#selectedId ? '#00eaff' : 'transparent';
         }
     }
 
@@ -108,6 +120,7 @@ export class GridEditor {
         this.#overlay.removeEventListener('pointermove', this.#onPointerMove);
         this.#overlay.removeEventListener('pointerup', this.#onPointerUp);
         this.#overlay.removeEventListener('pointercancel', this.#onPointerCancel);
+        this.#overlay.removeEventListener('click', this.#onClick);
         window.removeEventListener('keydown', this.#onKeyDown);
         this.#overlay.remove();
         if (parent) {
@@ -128,11 +141,38 @@ export class GridEditor {
             willChange: 'transform',
             contain: 'layout style paint'
         });
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.dataset.gaugeRemove = '';
+        remove.title = `Remove ${id}`;
+        remove.setAttribute('aria-label', remove.title);
+        remove.textContent = '×';
+        Object.assign(remove.style, {
+            position: 'absolute',
+            top: '4px',
+            right: '4px',
+            zIndex: '2',
+            width: '24px',
+            height: '24px',
+            padding: '0',
+            border: '0',
+            borderRadius: '0',
+            color: 'rgba(220, 239, 243, 0.72)',
+            background: 'transparent',
+            appearance: 'none',
+            font: 'inherit',
+            fontSize: '20px',
+            fontWeight: '400',
+            lineHeight: '1',
+            textShadow: '0 1px 2px rgba(0, 0, 0, 0.9)',
+            cursor: 'pointer'
+        });
+        item.append(remove);
         return item;
     }
 
     #onPointerDown = (event) => {
-        if (this.#drag || event.button !== 0) {
+        if (this.#drag || event.button !== 0 || event.target.closest?.('[data-gauge-remove]')) {
             return;
         }
         const item = event.target.closest('[data-gauge-id]');
@@ -180,6 +220,15 @@ export class GridEditor {
         this.#placeholder.style.display = 'block';
         setRect(this.#placeholder, rect);
         event.preventDefault();
+    };
+
+    #onClick = (event) => {
+        const button = event.target.closest?.('[data-gauge-remove]');
+        const id = button?.closest?.('[data-gauge-id]')?.dataset.gaugeId;
+        if (!id) return;
+        event.preventDefault();
+        event.stopPropagation();
+        this.#actions.remove?.(id);
     };
 
     #onPointerMove = (event) => {
@@ -328,8 +377,10 @@ export class GridEditor {
             return;
         }
         if (!this.#drag.previewed) {
+            const id = this.#drag.id;
             this.#drag.session.cancel();
             this.#finishDrag(null);
+            this.#actions.select?.(id);
             event.preventDefault();
             return;
         }
@@ -379,7 +430,7 @@ export class GridEditor {
         drag.item.style.transformOrigin = '';
         drag.item.style.cursor = 'grab';
         drag.item.style.zIndex = '';
-        drag.item.style.borderColor = 'transparent';
+        drag.item.style.borderColor = drag.id === this.#selectedId ? '#00eaff' : 'transparent';
         drag.item.style.background = 'transparent';
         this.#placeholder.style.display = 'none';
         this.#drag = null;

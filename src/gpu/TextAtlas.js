@@ -1,5 +1,4 @@
-const FONT_FAMILY = 'MultiGauge Inter';
-const FONT_URL = new URL('../assets/fonts/InterVariable.woff2', import.meta.url);
+const DEFAULT_FONT_FAMILY = 'sans-serif';
 const CHARACTERS = [...new Set(
     Array.from({ length: 95 }, (_, index) => String.fromCharCode(index + 32)).join('')
     + '°…µ·'
@@ -33,15 +32,23 @@ function makeCanvas(width, height) {
         : Object.assign(document.createElement('canvas'), { width, height });
 }
 
-function fontString(style, pixelRatio) {
-    return `${style.weight} ${style.logicalSize * pixelRatio}px "${FONT_FAMILY}"`;
+function normalizeFontFamily(value) {
+    const family = String(value ?? '').trim() || DEFAULT_FONT_FAMILY;
+    if (family.includes(',') || family.includes('"') || family.includes("'") || !family.includes(' ')) {
+        return family;
+    }
+    return `"${family}"`;
+}
+
+function fontString(style, pixelRatio, fontFamily) {
+    return `${style.weight} ${style.logicalSize * pixelRatio}px ${fontFamily}`;
 }
 
 function finiteMetric(value, fallback = 0) {
     return Number.isFinite(value) ? value : fallback;
 }
 
-/** A DPR-aware bitmap atlas with a small set of fixed Inter typography styles. */
+/** A DPR-aware bitmap atlas using the font family supplied by the host application. */
 export class TextAtlas {
     static CHARACTERS = CHARACTERS;
     static STYLES = STYLE_DEFINITIONS;
@@ -56,11 +63,12 @@ export class TextAtlas {
     #styleCache = new Map();
     #metricsCache = new Map();
     #measureCache = new Map();
-    #fontFace;
+    #fontFamily;
 
-    constructor(device, pixelRatio = globalThis.devicePixelRatio || 1) {
+    constructor(device, pixelRatio = globalThis.devicePixelRatio || 1, fontFamily = DEFAULT_FONT_FAMILY) {
         this.#device = device;
         this.#pixelRatio = Math.max(1, Number(pixelRatio) || 1);
+        this.#fontFamily = normalizeFontFamily(fontFamily);
     }
 
     get view() {
@@ -138,7 +146,7 @@ export class TextAtlas {
     }
 
     async initialize() {
-        await this.#loadFont();
+        await this.#waitForFont();
         const measurementCanvas = makeCanvas(1, 1);
         const measurement = measurementCanvas.getContext('2d', { alpha: true });
         measurement.textBaseline = 'alphabetic';
@@ -179,7 +187,7 @@ export class TextAtlas {
         context.textBaseline = 'alphabetic';
         context.fontKerning = 'none';
         for (const style of styles) {
-            context.font = fontString(style, this.#pixelRatio);
+            context.font = fontString(style, this.#pixelRatio, this.#fontFamily);
             for (const [character, glyph] of style.glyphs) {
                 if (character !== ' ') {
                     context.fillText(
@@ -201,7 +209,7 @@ export class TextAtlas {
         }
 
         this.#texture = this.#device.createTexture({
-            label: `MultiGauge Inter glyph atlas @${this.#pixelRatio}x`,
+            label: `MultiGauge glyph atlas (${this.#fontFamily}) @${this.#pixelRatio}x`,
             size: [atlasWidth, atlasHeight],
             format: 'rgba8unorm',
             usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
@@ -226,34 +234,23 @@ export class TextAtlas {
         this.#styleCache.clear();
         this.#metricsCache.clear();
         this.#measureCache.clear();
-        if (this.#fontFace && globalThis.document?.fonts) {
-            document.fonts.delete(this.#fontFace);
-        }
     }
 
-    async #loadFont() {
-        if (typeof FontFace !== 'function' || !globalThis.document?.fonts) {
-            throw new Error('MultiGauge requires the CSS Font Loading API to build its Inter atlas.');
+    async #waitForFont() {
+        if (!globalThis.document?.fonts) {
+            return;
         }
-        const face = new FontFace(FONT_FAMILY, `url("${FONT_URL.href}") format("woff2")`, {
-            style: 'normal',
-            weight: '100 900'
-        });
-        this.#fontFace = await face.load();
-        document.fonts.add(this.#fontFace);
         await Promise.all([...new Set(STYLE_DEFINITIONS.map(({ weight }) => weight))]
-            .map((weight) => document.fonts.load(`${weight} 16px "${FONT_FAMILY}"`, 'Hgm0123°µ·')));
+            .map((weight) => document.fonts.load(
+                `${weight} 16px ${this.#fontFamily}`,
+                'Hgm0123°µ·'
+            )));
         await document.fonts.ready;
-        for (const weight of new Set(STYLE_DEFINITIONS.map((style) => style.weight))) {
-            if (!document.fonts.check(`${weight} 16px "${FONT_FAMILY}"`, 'Hgm0123°µ·')) {
-                throw new Error(`Inter Variable weight ${weight} did not load for the MultiGauge atlas.`);
-            }
-        }
     }
 
     #measureStyle(context, definition, padding) {
         const style = { ...definition, glyphs: new Map() };
-        context.font = fontString(style, this.#pixelRatio);
+        context.font = fontString(style, this.#pixelRatio, this.#fontFamily);
         const records = [];
         for (const character of CHARACTERS) {
             const metrics = context.measureText(character);

@@ -8,7 +8,7 @@ import { GridEditor } from './interaction/GridEditor.js';
 import { resolveTheme } from './theme.js';
 
 /** A source-agnostic WebGPU panel containing multiple realtime gauges. */
-export class MultiGauge {
+export class MultiGauge extends EventTarget {
     #canvas;
     #runtime;
     #renderer;
@@ -26,7 +26,10 @@ export class MultiGauge {
     #height = 1;
     #panelLayout = layoutPanel({ width: 1, height: 1 });
     #editor;
+    #editing = true;
     #previewEntries;
+    #selectedGaugeId = null;
+    #accents = {};
     #stats = { updatesReceived: 0, rendersCoalesced: 0 };
 
     /** Create a panel after the shared WebGPU runtime is ready. */
@@ -34,13 +37,17 @@ export class MultiGauge {
         if (!canvas || typeof canvas.getContext !== 'function') {
             throw new MultiGaugeError('MultiGauge.create() requires a canvas.');
         }
-        const runtime = await SharedGpuRuntime.get();
+        const inheritedFontFamily = globalThis.getComputedStyle?.(canvas).fontFamily;
+        const runtime = await SharedGpuRuntime.get({
+            fontFamily: options.fontFamily || inheritedFontFamily
+        });
         const panel = new MultiGauge(canvas, options, runtime);
         panel.#initialize();
         return panel;
     }
 
     constructor(canvas, options, runtime) {
+        super();
         this.#canvas = canvas;
         this.#runtime = runtime;
         this.#layout = new GridLayout(options.grid);
@@ -58,6 +65,7 @@ export class MultiGauge {
         this.#assertAlive();
         const gauge = this.#addNow(configuration);
         this.#invalidate(true);
+        this.#emitConfigurationChange('add');
         return { ...gauge };
     }
 
@@ -68,7 +76,12 @@ export class MultiGauge {
             return false;
         }
         this.#layout.remove(id);
+        delete this.#accents[id];
+        if (this.#selectedGaugeId === id) {
+            this.#selectNow(null);
+        }
         this.#invalidate(true);
+        this.#emitConfigurationChange('remove');
         return true;
     }
 
@@ -89,11 +102,25 @@ export class MultiGauge {
         return this;
     }
 
-    /** Set several signals; all changes are coalesced into one animation frame. */
+    /** Set known signals; unknown stream fields are ignored after gauges are removed. */
     update(values) {
         this.#assertAlive();
+        let changed = false;
         for (const [id, value] of Object.entries(values)) {
-            this.set(id, value);
+            const gauge = this.#gauges.get(id);
+            if (!gauge) {
+                continue;
+            }
+            this.#stats.updatesReceived += 1;
+            const next = coerceValue(gauge, value);
+            if (!Object.is(next, gauge.value)) {
+                gauge.value = next;
+                this.#dynamicDirty = true;
+                changed = true;
+            }
+        }
+        if (changed) {
+            this.#schedule();
         }
         return this;
     }
@@ -110,11 +137,48 @@ export class MultiGauge {
         return this;
     }
 
+    /** Atomically update one gauge definition without changing its placement. */
+    configure(id, patch = {}) {
+        this.#assertAlive();
+        const current = this.#gauges.get(id);
+        if (!current) {
+            throw new MultiGaugeError(`Unknown gauge: ${id}.`);
+        }
+        const next = normalizeGauge({ ...current, ...patch, id });
+        this.#gauges.set(id, next);
+        this.#invalidate(true);
+        this.#emitConfigurationChange('configure');
+        return { ...next };
+    }
+
+    /** Apply source-owned runtime accent colors without serializing them. */
+    setAccents(accents = {}) {
+        this.#assertAlive();
+        const next = Object.fromEntries(Object.entries(accents)
+            .filter(([id, value]) => this.#gauges.has(id) && typeof value === 'string' && value));
+        if (JSON.stringify(next) !== JSON.stringify(this.#accents)) {
+            this.#accents = next;
+            this.#invalidate(true);
+        }
+        return this;
+    }
+
+    /** Select a gauge for an external editor. Selection is transient. */
+    select(id = null) {
+        this.#assertAlive();
+        if (id !== null && !this.#gauges.has(id)) {
+            throw new MultiGaugeError(`Unknown gauge: ${id}.`);
+        }
+        this.#selectNow(id);
+        return this;
+    }
+
     move(id, row, col) {
         this.#assertAlive();
         const result = this.#layout.move(id, row, col);
         if (result) {
             this.#invalidate(true);
+            this.#emitConfigurationChange('move');
         }
         return Boolean(result);
     }
@@ -124,6 +188,7 @@ export class MultiGauge {
         const result = this.#layout.resize(id, rowSpan, colSpan);
         if (result) {
             this.#invalidate(true);
+            this.#emitConfigurationChange('resize');
         }
         return Boolean(result);
     }
@@ -132,6 +197,7 @@ export class MultiGauge {
         this.#assertAlive();
         this.#layout.maximize(id);
         this.#invalidate(true);
+        this.#emitConfigurationChange('maximize');
         return this;
     }
 
@@ -140,6 +206,7 @@ export class MultiGauge {
         const result = this.#layout.minimize(id);
         if (result) {
             this.#invalidate(true);
+            this.#emitConfigurationChange('minimize');
         }
         return Boolean(result);
     }
@@ -149,23 +216,60 @@ export class MultiGauge {
         const result = this.#layout.restore(id);
         if (result) {
             this.#invalidate(true);
+            this.#emitConfigurationChange('restore-gauge');
         }
         return Boolean(result);
+    }
+
+    /** Atomically resize the grid and deterministically reflow gauges that no longer fit. */
+    setGrid(configuration = {}) {
+        this.#assertAlive();
+        const current = this.#layout.config;
+        const next = new GridLayout({ ...current, ...configuration });
+        const entries = new Map(this.#layout.entries());
+        const ordered = [...this.#gauges.values()].sort((a, b) => {
+            const first = entries.get(a.id);
+            const second = entries.get(b.id);
+            return first.row - second.row || first.col - second.col || a.id.localeCompare(b.id);
+        });
+        for (const gauge of ordered) {
+            const placement = entries.get(gauge.id);
+            try {
+                next.add(gauge.id, placement);
+            } catch {
+                next.add(gauge.id, {
+                    rowSpan: placement.rowSpan,
+                    colSpan: placement.colSpan
+                });
+            }
+        }
+        this.#replaceLayout(next);
+        this.#invalidate(true);
+        this.#emitConfigurationChange('grid');
+        return this;
     }
 
     /** Enable or disable direct layout manipulation. Enabled by default. */
     setEditing(enabled) {
         this.#assertAlive();
+        this.#editing = Boolean(enabled);
         if (enabled && !this.#editor) {
             this.#editor = new GridEditor(this.#canvas, this.#layout, {
                 preview: (entries) => this.#setLayoutPreview(entries),
-                commit: () => this.#finishLayoutPreview(),
-                cancel: () => this.#finishLayoutPreview()
+                commit: () => {
+                    this.#finishLayoutPreview();
+                    this.#emitConfigurationChange('layout');
+                },
+                cancel: () => this.#finishLayoutPreview(),
+                select: (id) => this.#selectNow(id),
+                remove: (id) => this.remove(id)
             });
+            this.#editor.select(this.#selectedGaugeId);
             this.#refreshEditor();
         } else if (!enabled && this.#editor) {
             this.#editor.destroy();
             this.#editor = null;
+            this.#selectNow(null);
         }
         return this;
     }
@@ -202,18 +306,18 @@ export class MultiGauge {
             layout.add(gauge.id, gauge);
             gauges.set(gauge.id, gauge);
         }
-        this.#layout = layout;
-        this.#previewEntries = undefined;
         this.#gauges = gauges;
+        this.#accents = Object.fromEntries(Object.entries(this.#accents)
+            .filter(([id]) => gauges.has(id)));
+        if (this.#selectedGaugeId && !gauges.has(this.#selectedGaugeId)) {
+            this.#selectNow(null);
+        }
         this.#accent = state.accent ?? '#00eaff';
         this.#theme = resolveTheme(state.theme, this.#accent);
         this.#header = state.header ? { ...state.header } : null;
-        if (this.#editor) {
-            this.#editor.destroy();
-            this.#editor = null;
-            this.setEditing(true);
-        }
+        this.#replaceLayout(layout);
         this.#invalidate(true);
+        this.#emitConfigurationChange('restore');
         return this;
     }
 
@@ -260,7 +364,7 @@ export class MultiGauge {
             this.#resizeObserver.observe(this.#canvas);
         }
         resize();
-        this.setEditing(true);
+        this.setEditing(this.#editing);
         this.#invalidate(true);
     }
 
@@ -314,10 +418,17 @@ export class MultiGauge {
             gauges = [maximized];
         }
         if (this.#staticDirty) {
-            this.#renderer.rebuildStatic(gauges, rectangles, this.#header, this.#theme, this.#panelLayout);
+            this.#renderer.rebuildStatic(
+                gauges,
+                rectangles,
+                this.#header,
+                this.#theme,
+                this.#panelLayout,
+                this.#accents
+            );
         }
         if (this.#dynamicDirty) {
-            this.#renderer.updateDynamic(gauges, this.#theme);
+            this.#renderer.updateDynamic(gauges, this.#theme, this.#accents);
         }
         this.#renderer.render(this.#theme);
         this.#staticDirty = false;
@@ -335,6 +446,44 @@ export class MultiGauge {
     #finishLayoutPreview() {
         this.#previewEntries = undefined;
         this.#invalidate(true);
+    }
+
+    #replaceLayout(layout) {
+        this.#layout = layout;
+        this.#previewEntries = undefined;
+        if (!this.#editor) {
+            return;
+        }
+        this.#editor.destroy();
+        this.#editor = null;
+        if (this.#editing) {
+            this.setEditing(true);
+        }
+    }
+
+    #selectNow(id) {
+        const next = id ?? null;
+        if (this.#selectedGaugeId === next) {
+            return;
+        }
+        this.#selectedGaugeId = next;
+        this.#editor?.select(next);
+        const gauge = next ? this.#gauges.get(next) : null;
+        this.dispatchEvent(new CustomEvent('selectionchange', {
+            detail: {
+                id: next,
+                gauge: gauge ? serializeGauge(gauge, this.#layout.get(next)) : null
+            }
+        }));
+    }
+
+    #emitConfigurationChange(reason) {
+        this.dispatchEvent(new CustomEvent('configurationchange', {
+            detail: {
+                reason,
+                state: this.serialize()
+            }
+        }));
     }
 
     #refreshEditor(rectangles) {

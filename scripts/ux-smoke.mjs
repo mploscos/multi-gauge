@@ -108,8 +108,8 @@ const headerGeometry = await evaluate(`(() => {
         gapFromRegularHeader: overlayRect.top - canvasRect.top - 64,
         overlayMatchesFirst: Math.abs(overlayRect.top - firstRect.top) < 0.1,
         backingScale: canvas.width / canvas.clientWidth,
-        interLoaded: document.fonts.check('600 16px "MultiGauge Inter"', 'Hgm0123°µ·'),
-        fontRequests: performance.getEntriesByType('resource')
+        fontFamily: getComputedStyle(canvas).fontFamily,
+        packageFontRequests: performance.getEntriesByType('resource')
             .filter(({ name }) => name.endsWith('/InterVariable.woff2')).length
     };
 })()`);
@@ -119,6 +119,41 @@ if (headerGeometry.missing) {
     process.exitCode = 1;
     await new Promise((resolve) => socket.addEventListener('close', resolve, { once: true }));
     process.exit();
+}
+const closeButtonVisual = await evaluate(`(() => {
+    const button = document.querySelector('[data-gauge-remove]');
+    const style = getComputedStyle(button);
+    return {
+        text: button.textContent,
+        background: style.backgroundColor,
+        borderTopWidth: style.borderTopWidth
+    };
+})()`);
+if (closeButtonVisual.text !== '×'
+    || closeButtonVisual.background !== 'rgba(0, 0, 0, 0)'
+    || closeButtonVisual.borderTopWidth !== '0px') {
+    throw new Error(`Gauge close control is not minimal: ${JSON.stringify(closeButtonVisual)}`);
+}
+const beforeGaugeRemoval = await evaluate(`({
+    renders: globalThis.demoPanels.vehicle.getStats().renders,
+    speed: globalThis.demoPanels.vehicle.serialize().gauges.find(({ id }) => id === 'speed').value
+})`);
+await evaluate(`globalThis.demoPanels.vehicle.remove('temperature')`);
+await wait(300);
+const afterGaugeRemoval = await evaluate(`({
+    renders: globalThis.demoPanels.vehicle.getStats().renders,
+    speed: globalThis.demoPanels.vehicle.serialize().gauges.find(({ id }) => id === 'speed').value,
+    removed: !globalThis.demoPanels.vehicle.serialize().gauges.some(({ id }) => id === 'temperature'),
+    error: document.querySelector('#error').textContent
+})`);
+if (!afterGaugeRemoval.removed
+    || afterGaugeRemoval.renders <= beforeGaugeRemoval.renders
+    || afterGaugeRemoval.speed === beforeGaugeRemoval.speed
+    || afterGaugeRemoval.error) {
+    throw new Error(`Demo stopped after removing a gauge: ${JSON.stringify({
+        beforeGaugeRemoval,
+        afterGaugeRemoval
+    })}`);
 }
 await screenshot('/tmp/multigauge-demo-ux.png');
 await evaluate(`document.querySelector('.primary').style.height = '600px'`);
@@ -237,6 +272,8 @@ await screenshot('/tmp/multigauge-10x10.png');
 
 console.log(JSON.stringify({
     headerGeometry,
+    closeButtonVisual,
+    removalContinuity: { beforeGaugeRemoval, afterGaugeRemoval },
     resizedGeometry,
     noHeader: {
         aligned: Math.abs(noHeaderBefore.canvasContentTop - noHeaderBefore.overlayTop) < 0.1,

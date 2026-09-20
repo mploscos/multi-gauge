@@ -192,6 +192,14 @@ test('dynamic values can reuse a preallocated typed array', () => {
     assert.equal(output[0], 0.5);
 });
 
+test('runtime gauge accents override the panel accent without changing the model', () => {
+    const theme = resolveTheme({}, '#00eaff');
+    const gauge = normalizeGauge({ id: 'speed', type: 'arc', value: 50 });
+    const output = buildDynamicValues([gauge], theme, [], { speed: '#ff8800' });
+    assert.deepEqual(output.slice(4, 8), color('#ff8800'));
+    assert.equal(Object.hasOwn(gauge, 'accent'), false);
+});
+
 test('centered compass headings use three digits without a degree symbol', () => {
     const characters = [];
     const atlas = fakeAtlas(2, (character) => characters.push(character));
@@ -360,7 +368,7 @@ test('large arc scenes render configured band labels', () => {
             type: 'arc',
             min: 0,
             max: 300,
-            bands: [{ from: 120, to: 160, kind: 'cruise', ...(label ? { label } : {}) }]
+            bands: [{ from: 120, to: 160, kind: 'normal', ...(label ? { label } : {}) }]
         })],
         new Map([['speed', { x: 0, y: 0, width: 360, height: 280 }]]),
         null,
@@ -371,10 +379,10 @@ test('large arc scenes render configured band labels', () => {
         }
     );
     const withoutLabel = makeScene();
-    const withLabel = makeScene('CRUISE');
+    const withLabel = makeScene('NORMAL');
     assert.equal(
         (withLabel.text.length - withoutLabel.text.length) / TEXT_INSTANCE_SIZE,
-        'CRUISE'.length
+        'NORMAL'.length
     );
 });
 
@@ -386,7 +394,7 @@ test('radial band labels sit outside the arc and target labels use a separate ou
         type: 'arc',
         min: 0,
         max: 100,
-        bands: [{ from: 40, to: 60, kind: 'cruise', label: 'B' }],
+        bands: [{ from: 40, to: 60, kind: 'normal', label: 'B' }],
         markers: [{ id: 'target', value: 50, label: 'T' }]
     });
     const scene = buildStaticScene(

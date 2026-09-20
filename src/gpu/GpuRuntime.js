@@ -19,12 +19,16 @@ export class SharedGpuRuntime {
     #generation = 0;
     #recovering = false;
 
-    static get() {
+    static get(options = {}) {
         if (!this.#promise) {
-            const runtime = new SharedGpuRuntime();
+            const runtime = new SharedGpuRuntime(options);
             this.#promise = runtime.#initialize().then(() => runtime);
         }
         return this.#promise;
+    }
+
+    constructor(options = {}) {
+        this.#fontFamily = options.fontFamily;
     }
 
     get device() {
@@ -82,7 +86,11 @@ export class SharedGpuRuntime {
         this.#device = await this.#adapter.requestDevice();
         this.#format = navigator.gpu.getPreferredCanvasFormat();
         this.#createSharedResources();
-        this.#atlas = new TextAtlas(this.#device, globalThis.devicePixelRatio || 1);
+        this.#atlas = new TextAtlas(
+            this.#device,
+            globalThis.devicePixelRatio || 1,
+            this.#fontFamily
+        );
         await this.#atlas.initialize();
         this.#icons = new IconCache(this.#device);
         this.#generation += 1;
@@ -150,4 +158,6 @@ export class SharedGpuRuntime {
             this.#recovering = false;
         }
     }
+
+    #fontFamily;
 }

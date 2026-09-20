@@ -1,13 +1,18 @@
 {
     "name": "multi-gauge",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "A tiny, fast WebGPU instrument panel for realtime signals.",
     "type": "module",
     "exports": {
-        ".": "./src/index.js"
+        ".": {
+            "types": "./types/index.d.ts",
+            "default": "./src/index.js"
+        }
     },
+    "types": "./types/index.d.ts",
     "files": [
         "src",
+        "types",
         "docs/multigauge-demo.png",
         "README.md",
         "LICENSE"

@@ -82,14 +82,15 @@ export class Renderer {
         return changed;
     }
 
-    rebuildStatic(gauges, rectangles, header, theme, panelLayout) {
+    rebuildStatic(gauges, rectangles, header, theme, panelLayout, accents = {}) {
         const scene = buildStaticScene(
             this.#runtime.atlas,
             gauges,
             rectangles,
             header,
             theme,
-            panelLayout
+            panelLayout,
+            accents
         );
         this.#shapeCount = scene.shapes.length / 20;
         this.#staticTextCount = scene.text.length / TEXT_INSTANCE_SIZE;
@@ -105,12 +106,12 @@ export class Renderer {
         this.#setIcon(header?.icon, theme, scene.iconRect);
     }
 
-    updateDynamic(gauges, theme) {
+    updateDynamic(gauges, theme, accents = {}) {
         const valueLength = Math.max(8, gauges.length * 8);
         if (this.#dynamicValuesStaging.length !== valueLength) {
             this.#dynamicValuesStaging = new Float32Array(valueLength);
         }
-        buildDynamicValues(gauges, theme, this.#dynamicValuesStaging);
+        buildDynamicValues(gauges, theme, this.#dynamicValuesStaging, accents);
         const dynamicChanged = this.#ensure('dynamic', valueLength * 4, STORAGE());
         this.#write('dynamic', this.#dynamicValuesStaging);
 

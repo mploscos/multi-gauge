@@ -155,3 +155,22 @@ test('dragging last into first and resizing first remain deterministic', () => {
     assert.equal(grid.get('last').rowSpan, 2);
     assertNoOverlap(grid);
 });
+
+test('a serialized layout can be reflowed into a resized grid atomically', () => {
+    const source = new GridLayout({ rows: 2, columns: 3 });
+    source.add('a', { row: 0, col: 2 });
+    source.add('b', { row: 1, col: 0, colSpan: 2 });
+    const resized = new GridLayout({ rows: 3, columns: 2 });
+    for (const [id, placement] of source.entries()) {
+        try {
+            resized.add(id, placement);
+        } catch {
+            resized.add(id, { rowSpan: placement.rowSpan, colSpan: placement.colSpan });
+        }
+    }
+    assert.deepEqual(placements(resized), {
+        a: { row: 0, col: 0, rowSpan: 1, colSpan: 1 },
+        b: { row: 1, col: 0, rowSpan: 1, colSpan: 2 }
+    });
+    assertNoOverlap(resized);
+});

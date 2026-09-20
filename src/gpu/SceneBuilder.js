@@ -489,7 +489,7 @@ function addStatus(scene, rect, theme, index) {
         [5, radius, 0, 0], [0, index, 6, 0]);
 }
 
-export function buildStaticScene(atlas, gauges, rectangles, header, theme, panelLayout) {
+export function buildStaticScene(atlas, gauges, rectangles, header, theme, panelLayout, accents = {}) {
     const scene = { shapes: [], text: [], atlas, cellLayouts: new Map(), iconRect: null };
     const { headerRect } = panelLayout;
     if (header && headerRect.height > 0) {
@@ -546,6 +546,7 @@ export function buildStaticScene(atlas, gauges, rectangles, header, theme, panel
         if (!rect) {
             return;
         }
+        const gaugeTheme = accents[gauge.id] ? { ...theme, accent: accents[gauge.id] } : theme;
         const layout = absoluteCellLayout(rect, gauge);
         scene.cellLayouts.set(gauge.id, layout);
         box(scene.shapes, rect.x, rect.y, rect.width, rect.height, color(theme.surface), 7);
@@ -573,13 +574,13 @@ export function buildStaticScene(atlas, gauges, rectangles, header, theme, panel
         }
 
         if (gauge.type === 'arc') {
-            addArcGauge(scene, gauge, layout.gaugeRect, theme, index, layout);
+            addArcGauge(scene, gauge, layout.gaugeRect, gaugeTheme, index, layout);
         } else if (gauge.type === 'linear') {
-            addLinearGauge(scene, gauge, layout.gaugeRect, theme, index, layout);
+            addLinearGauge(scene, gauge, layout.gaugeRect, gaugeTheme, index, layout);
         } else if (gauge.type === 'compass') {
-            addCompass(scene, gauge, layout.gaugeRect, theme, index, layout);
+            addCompass(scene, gauge, layout.gaugeRect, gaugeTheme, index, layout);
         } else {
-            addStatus(scene, layout.gaugeRect, theme, index);
+            addStatus(scene, layout.gaugeRect, gaugeTheme, index);
         }
     });
     return scene;
@@ -614,7 +615,7 @@ export function dynamicTextKey(gauges) {
 }
 
 /** Write the small per-gauge value/color records without allocating an intermediate array. */
-export function buildDynamicValues(gauges, theme, output = []) {
+export function buildDynamicValues(gauges, theme, output = [], accents = {}) {
     const length = Math.max(8, gauges.length * 8);
     if (Array.isArray(output)) {
         output.length = length;
@@ -622,8 +623,8 @@ export function buildDynamicValues(gauges, theme, output = []) {
         throw new RangeError('Dynamic value output is smaller than required.');
     }
     let offset = 0;
-    const accent = color(theme.accent);
     for (const gauge of gauges) {
+        const accent = color(accents[gauge.id] ?? theme.accent);
         const normalized = gauge.type === 'status' ? 0 : normalizeValue(gauge, gauge.value);
         const status = gauge.type === 'status' ? resolveStatus(gauge, gauge.value) : null;
         const rgba = status
