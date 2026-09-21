@@ -1,7 +1,7 @@
 const DEFAULT_FONT_FAMILY = 'sans-serif';
 const CHARACTERS = [...new Set(
     Array.from({ length: 95 }, (_, index) => String.fromCharCode(index + 32)).join('')
-    + '°…µ·'
+    + '°…µ·²³'
 )].join('');
 
 const STYLE_DEFINITIONS = Object.freeze([
@@ -243,7 +243,7 @@ export class TextAtlas {
         await Promise.all([...new Set(STYLE_DEFINITIONS.map(({ weight }) => weight))]
             .map((weight) => document.fonts.load(
                 `${weight} 16px ${this.#fontFamily}`,
-                'Hgm0123°µ·'
+                'Hgm0123°µ·²³'
             )));
         await document.fonts.ready;
     }
@@ -286,7 +286,7 @@ export class TextAtlas {
                 glyph.advance = digitAdvance;
             }
         }
-        const sample = context.measureText('Hgjpqy°µ');
+        const sample = context.measureText('Hgjpqy°µ²³');
         style.ascent = Math.max(
             finiteMetric(sample.fontBoundingBoxAscent),
             ...records.map((record) => record.ascent)

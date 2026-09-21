@@ -226,13 +226,28 @@ const afterEdgeDrag = await evaluate(`(() => {
 const resizePoints = await evaluate(`(() => {
     const node = document.querySelector('#no-header-fixture [data-gauge-id="last"]');
     const rect = node.getBoundingClientRect();
+    const remove = node.querySelector('[data-gauge-remove]').getBoundingClientRect();
     return {
         start: { x: rect.right - 3, y: rect.top + rect.height / 2 },
-        end: { x: rect.right + rect.width, y: rect.top + rect.height / 2 }
+        end: { x: rect.right + rect.width, y: rect.top + rect.height / 2 },
+        remove: { width: remove.width, height: remove.height }
     };
 })()`);
 await mouse('mousePressed', resizePoints.start, 1);
 await mouse('mouseMoved', resizePoints.end, 1);
+await wait(100);
+const removeDuringResize = await evaluate(`(() => {
+    const remove = document.querySelector('#no-header-fixture [data-gauge-id="last"] [data-gauge-remove]')
+        .getBoundingClientRect();
+    return { width: remove.width, height: remove.height };
+})()`);
+if (Math.abs(removeDuringResize.width - resizePoints.remove.width) > 0.1
+    || Math.abs(removeDuringResize.height - resizePoints.remove.height) > 0.1) {
+    throw new Error(`Gauge remove control deformed during resize: ${JSON.stringify({
+        before: resizePoints.remove,
+        during: removeDuringResize
+    })}`);
+}
 await mouse('mouseReleased', resizePoints.end, 0);
 await wait(300);
 const afterResize = await evaluate(`(() => {

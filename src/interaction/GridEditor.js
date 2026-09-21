@@ -272,10 +272,9 @@ export class GridEditor {
             const offsetY = this.#drag.resizeY < 0
                 ? this.#drag.initialRect.height - height
                 : 0;
-            const scaleX = width / this.#drag.initialRect.width;
-            const scaleY = height / this.#drag.initialRect.height;
-            this.#drag.item.style.transformOrigin = '0 0';
-            this.#drag.item.style.transform = `translate3d(${offsetX}px, ${offsetY}px, 0) scale(${scaleX}, ${scaleY})`;
+            this.#drag.item.style.width = `${width}px`;
+            this.#drag.item.style.height = `${height}px`;
+            this.#drag.item.style.transform = `translate3d(${offsetX}px, ${offsetY}px, 0)`;
         } else {
             this.#drag.item.style.transform = `translate3d(${this.#drag.dx}px, ${this.#drag.dy}px, 0)`;
         }

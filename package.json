@@ -1,6 +1,6 @@
 {
     "name": "multi-gauge",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "description": "A tiny, fast WebGPU instrument panel for realtime signals.",
     "type": "module",
     "exports": {

@@ -93,7 +93,7 @@ test('fixed styles and required HMI characters are present', () => {
         TextAtlas.STYLES.filter(({ role }) => role === 'unit').map(({ logicalSize }) => logicalSize),
         [11, 12, 13]
     );
-    for (const character of '°%/.-:µ·ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789') {
+    for (const character of '°%/.-:µ·²³ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789') {
         assert.ok(TextAtlas.CHARACTERS.includes(character), character);
     }
 });
