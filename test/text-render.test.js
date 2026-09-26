@@ -6,6 +6,7 @@ import {
     buildDynamicValues,
     buildStaticScene,
     dynamicTextKey,
+    formatGaugeValue,
     TEXT_INSTANCE_SIZE
 } from '../src/gpu/SceneBuilder.js';
 import { TextAtlas } from '../src/gpu/TextAtlas.js';
@@ -169,6 +170,7 @@ test('dynamic text keys ignore visually equivalent samples but include band chan
     const gauge = normalizeGauge({
         id: 'temperature',
         type: 'linear',
+        max: 50,
         value: 10.12,
         bands: [{ from: 20, to: 30, kind: 'warning' }]
     });
@@ -179,6 +181,12 @@ test('dynamic text keys ignore visually equivalent samples but include band chan
     assert.notEqual(dynamicTextKey([gauge]), first);
     gauge.value = 20;
     assert.match(dynamicTextKey([gauge]), /@warning/);
+});
+
+test('numeric readouts keep a stable decimal width', () => {
+    assert.equal(formatGaugeValue(normalizeGauge({ id: 'small', type: 'linear', min: 0, max: 20, value: 9 })), '9.0');
+    assert.equal(formatGaugeValue(normalizeGauge({ id: 'small', type: 'linear', min: 0, max: 20, value: 9.1 })), '9.1');
+    assert.equal(formatGaugeValue(normalizeGauge({ id: 'large', type: 'arc', min: 0, max: 200, value: 99.9 })), '100');
 });
 
 test('dynamic values can reuse a preallocated typed array', () => {
@@ -203,8 +211,8 @@ test('runtime gauge accents override the panel accent without changing the model
 test('centered compass headings use three digits without a degree symbol', () => {
     const characters = [];
     const atlas = fakeAtlas(2, (character) => characters.push(character));
-    const gauge = normalizeGauge({ id: 'heading', type: 'compass', value: 90 });
-    const layout = layoutCell({ width: 240, height: 200, gaugeType: 'compass' });
+    const gauge = normalizeGauge({ id: 'heading', type: 'compass', value: 90, unit: 'deg' });
+    const layout = layoutCell({ width: 240, height: 200, gaugeType: 'compass', hasUnit: true });
     buildDynamicData(
         atlas,
         [gauge],
@@ -326,6 +334,79 @@ test('linear moving indicators use accent while key markers use target color', (
     assert.deepEqual(moving.rgba, color(theme.accent));
     assert.ok(key);
     assert.notDeepEqual(moving.rgba, key.rgba);
+});
+
+test('linear gauges render scale ticks and configured marker labels', () => {
+    const atlas = fakeAtlas(2);
+    const gauge = normalizeGauge({
+        id: 'linear',
+        type: 'linear',
+        orientation: 'vertical',
+        label: '',
+        markers: [{ id: 'key', value: 50, label: 'TARGET' }]
+    });
+    const scene = buildStaticScene(
+        atlas,
+        [gauge],
+        new Map([['linear', { x: 0, y: 0, width: 300, height: 240 }]]),
+        null,
+        resolveTheme(),
+        {
+            headerRect: { x: 0, y: 0, width: 0, height: 0 },
+            gridRect: { x: 0, y: 0, width: 300, height: 240 }
+        }
+    );
+    const muted = color(resolveTheme().muted, 0.52);
+    const shapes = Array.from({ length: scene.shapes.length / 20 }, (_, index) =>
+        scene.shapes.slice(index * 20, index * 20 + 20));
+    assert.equal(shapes.filter(shape => shape.slice(4, 8)
+        .every((channel, index) => channel === muted[index])).length, 11);
+    assert.equal(scene.text.length / TEXT_INSTANCE_SIZE, 'TARGET'.length);
+});
+
+test('vertical linear bands and labels share the right side of the track', () => {
+    const atlas = fakeAtlas(2);
+    const theme = resolveTheme();
+    const gauge = normalizeGauge({
+        id: 'linear', type: 'linear', orientation: 'vertical', label: '',
+        bands: [{ from: 20, to: 60, kind: 'warning', label: 'B' }]
+    });
+    const scene = buildStaticScene(
+        atlas,
+        [gauge],
+        new Map([['linear', { x: 0, y: 0, width: 300, height: 240 }]]),
+        null,
+        theme,
+        {
+            headerRect: { x: 0, y: 0, width: 0, height: 0 },
+            gridRect: { x: 0, y: 0, width: 300, height: 240 }
+        }
+    );
+    const warning = color(theme.warning);
+    const band = Array.from({ length: scene.shapes.length / 20 }, (_, index) =>
+        scene.shapes.slice(index * 20, index * 20 + 20))
+        .find(shape => shape.slice(4, 8).every((channel, index) => channel === warning[index]));
+    assert.ok(scene.text[0] > band[0]);
+});
+
+test('vertical linear readouts sit next to the track when no label lane is needed', () => {
+    const atlas = fakeAtlas(2);
+    const gauge = normalizeGauge({ id: 'linear', type: 'linear', orientation: 'vertical', label: '' });
+    const scene = buildStaticScene(
+        atlas,
+        [gauge],
+        new Map([['linear', { x: 0, y: 0, width: 180, height: 220 }]]),
+        null,
+        resolveTheme(),
+        {
+            headerRect: { x: 0, y: 0, width: 0, height: 0 },
+            gridRect: { x: 0, y: 0, width: 180, height: 220 }
+        }
+    );
+    const track = Array.from({ length: scene.shapes.length / 20 }, (_, index) =>
+        scene.shapes.slice(index * 20, index * 20 + 20)).find(shape => shape[8] === 2);
+    const trackRight = track[0] + track[2];
+    assert.equal(scene.cellLayouts.get('linear').readoutRect.x - trackRight, 4);
 });
 
 for (const orientation of ['horizontal', 'vertical']) {

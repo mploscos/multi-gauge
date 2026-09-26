@@ -329,11 +329,31 @@ function addLinearGauge(scene, gauge, rect, theme, index, layout) {
     const vertical = gauge.orientation === 'vertical';
     const length = vertical ? Math.max(1, rect.height - 14) : rect.width * 0.78;
     const thickness = Math.max(5, Math.min(18, vertical ? rect.width * 0.13 : rect.height * 0.18));
-    const x = vertical ? rect.x + (rect.width - thickness) / 2 : rect.x + (rect.width - length) / 2;
+    const bandLabelSpace = vertical && layout.showBandLabels
+        ? Math.min(56, rect.width * 0.45)
+        : 0;
+    const x = vertical
+        ? rect.x + rect.width - thickness - bandLabelSpace
+        : rect.x + (rect.width - length) / 2;
     const y = vertical ? rect.y + (rect.height - length) / 2 : rect.y + (rect.height - thickness) / 2;
     const width = vertical ? thickness : length;
     const height = vertical ? length : thickness;
     capsule(scene.shapes, x, y, width, height, color(theme.grid), index);
+    if (layout.showTicks) {
+        for (let tick = 0; tick <= 10; tick += 1) {
+            const position = tick / 10;
+            const major = tick === 0 || tick === 5 || tick === 10;
+            if (vertical) {
+                const tickWidth = major ? 7 : 4;
+                capsule(scene.shapes, x - tickWidth - 2, y + height * (1 - position) - 0.5,
+                    tickWidth, 1, color(theme.muted, layout.typography.ticks.alpha), index);
+            } else {
+                const tickHeight = major ? 7 : 4;
+                capsule(scene.shapes, x + width * position - 0.5, y - tickHeight - 2,
+                    1, tickHeight, color(theme.muted, layout.typography.ticks.alpha), index);
+            }
+        }
+    }
     for (const band of gauge.bands) {
         const from = normalizeValue(gauge, band.from);
         const to = normalizeValue(gauge, band.to);
@@ -348,12 +368,13 @@ function addLinearGauge(scene, gauge, rect, theme, index, layout) {
         if (layout.showBandLabels && band.label) {
             const midpoint = (from + to) / 2;
             if (vertical) {
-                const available = Math.max(0, x - rect.x - 8);
+                const labelX = x + width + 9;
+                const available = Math.max(0, rect.x + rect.width - labelX);
                 const fitted = fitOptionalLabel(scene.atlas, band.label, available);
                 if (fitted) {
-                    addText(scene.atlas, scene.text, fitted.text, x - 7,
+                    addText(scene.atlas, scene.text, fitted.text, labelX,
                         y + height * (1 - midpoint) - fitted.size / 2,
-                        fitted.size, rgba, 'right', 'label');
+                        fitted.size, rgba, 'left', 'label');
                 }
             } else {
                 const available = width * Math.abs(to - from);
@@ -376,12 +397,27 @@ function addLinearGauge(scene, gauge, rect, theme, index, layout) {
     }
     for (const marker of gauge.markers) {
         const normalized = normalizeValue(gauge, marker.value);
+        const rgba = semanticColor(theme, marker.kind, 'target');
         if (vertical) {
             capsule(scene.shapes, x - 5, y + height * (1 - normalized) - 1, width + 10, 2,
-                semanticColor(theme, marker.kind, 'target'), index);
+                rgba, index);
         } else {
             capsule(scene.shapes, x + width * normalized - 1, y - 5, 2, height + 10,
-                semanticColor(theme, marker.kind, 'target'), index);
+                rgba, index);
+        }
+        if (layout.showMarkerLabels && marker.label) {
+            if (vertical) {
+                const available = Math.max(0, x - rect.x - 9);
+                const fitted = fitOptionalLabel(scene.atlas, marker.label, available);
+                if (fitted) addText(scene.atlas, scene.text, fitted.text, x - 8,
+                    y + height * (1 - normalized) - fitted.size / 2,
+                    fitted.size, rgba, 'right', 'label');
+            } else {
+                const fitted = fitOptionalLabel(scene.atlas, marker.label, Math.min(80, rect.width * 0.32));
+                if (fitted) addText(scene.atlas, scene.text, fitted.text,
+                    x + width * normalized, y - fitted.size - 10,
+                    fitted.size, rgba, 'center', 'label');
+            }
         }
     }
 }
@@ -594,7 +630,8 @@ export function formatGaugeValue(gauge) {
     if (gauge.type === 'compass') {
         return Math.round(value).toString().padStart(3, '0');
     }
-    return Math.abs(value) >= 100 ? String(Math.round(value)) : String(Math.round(value * 10) / 10);
+    const rangeMagnitude = Math.max(Math.abs(gauge.min), Math.abs(gauge.max));
+    return rangeMagnitude >= 100 ? value.toFixed(0) : value.toFixed(1);
 }
 
 /** A compact key for deciding whether dynamic glyph geometry or color actually changed. */

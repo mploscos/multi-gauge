@@ -75,7 +75,7 @@ export function layoutCell({
         large: { padding: 13, label: 12, minLabel: 9, info: 11, value: 29, unit: 13, readout: 39 }
     }[level];
     const showInfo = hasInfo && level !== 'small';
-    const showUnit = hasUnit && cellWidth >= 72 && cellHeight >= 82;
+    const showUnit = gaugeType !== 'compass' && hasUnit && cellWidth >= 72 && cellHeight >= 82;
     const labelLineHeight = sizes.label + 4;
     const infoLineHeight = showInfo ? sizes.info + 3 : 0;
     const metaHeight = labelLineHeight + (showInfo ? infoLineHeight + 1 : 0);

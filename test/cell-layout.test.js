@@ -80,8 +80,9 @@ test('vertical linear gauges place an inline readout to the right of a full-heig
 });
 
 test('compass uses its full dial region and centers the heading readout', () => {
-    const layout = layoutCell({ width: 240, height: 200, gaugeType: 'compass' });
+    const layout = layoutCell({ width: 240, height: 200, gaugeType: 'compass', hasUnit: true });
     assert.equal(layout.readoutMode, 'center-stacked');
+    assert.equal(layout.showUnit, false);
     assert.ok(layout.readoutRect.y >= layout.gaugeRect.y);
     assert.ok(layout.readoutRect.y + layout.readoutRect.height
         <= layout.gaugeRect.y + layout.gaugeRect.height);
