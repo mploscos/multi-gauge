@@ -21,6 +21,15 @@ function sortItems(entries) {
         || idA.localeCompare(idB));
 }
 
+function compareScores(a, b) {
+    for (let index = 0; index < a.length; index += 1) {
+        if (a[index] !== b[index]) {
+            return a[index] - b[index];
+        }
+    }
+    return 0;
+}
+
 /** A non-mutating drag/resize transaction over a committed GridLayout. */
 export class GridDragSession {
     #layout;
@@ -75,7 +84,12 @@ export class GridDragSession {
                 row: change.row,
                 col: change.col
             };
-        const next = this.#layout.previewPlacement(this.#id, candidate, this.#snapshot);
+        const next = this.#mode === 'move' && change.fit
+            ? this.#layout.previewMoveToFit(this.#id, candidate, {
+                row: change.anchorRow,
+                col: change.anchorCol
+            }, this.#snapshot)
+            : this.#layout.previewPlacement(this.#id, candidate, this.#snapshot);
         this.#valid = Boolean(next);
         this.#preview = next ?? cloneEntries(this.#snapshot);
         return {
@@ -251,6 +265,85 @@ export class GridLayout {
             compacted.set(otherId, { ...item, ...position });
         }
         return this.#valid(compacted) ? compacted : null;
+    }
+
+    /**
+     * Preview a move that may shrink into the largest free rectangle containing
+     * the pointer cell. Occupied pointer cells retain the normal reflow/swap
+     * semantics, so adaptive sizing never masks collision intent.
+     */
+    previewMoveToFit(id, candidate, anchor, source = this.#items) {
+        const initial = source.get(id);
+        if (!initial) {
+            return null;
+        }
+        const row = Math.min(this.#rows - 1, Math.max(0, Math.round(candidate.row)));
+        const col = Math.min(this.#columns - 1, Math.max(0, Math.round(candidate.col)));
+        const window = {
+            ...initial,
+            row,
+            col,
+            rowSpan: Math.min(initial.rowSpan, this.#rows - row),
+            colSpan: Math.min(initial.colSpan, this.#columns - col)
+        };
+        const anchorRow = Math.min(
+            row + window.rowSpan - 1,
+            Math.max(row, Math.round(anchor?.row ?? row))
+        );
+        const anchorCol = Math.min(
+            col + window.colSpan - 1,
+            Math.max(col, Math.round(anchor?.col ?? col))
+        );
+        const occupiedAnchor = [...source].some(([otherId, item]) => otherId !== id
+            && !item.maximized
+            && anchorRow >= item.row && anchorRow < item.row + item.rowSpan
+            && anchorCol >= item.col && anchorCol < item.col + item.colSpan);
+        if (occupiedAnchor) {
+            const preserved = {
+                ...initial,
+                row: Math.min(this.#rows - initial.rowSpan, row),
+                col: Math.min(this.#columns - initial.colSpan, col)
+            };
+            return this.previewPlacement(id, preserved, source);
+        }
+
+        const withoutMoving = new Map([...source].filter(([otherId]) => otherId !== id));
+        let best = null;
+        const requestedRatio = window.colSpan / window.rowSpan;
+        for (let top = row; top <= anchorRow; top += 1) {
+            for (let bottom = anchorRow + 1; bottom <= row + window.rowSpan; bottom += 1) {
+                for (let left = col; left <= anchorCol; left += 1) {
+                    for (let right = anchorCol + 1; right <= col + window.colSpan; right += 1) {
+                        const placement = {
+                            ...initial,
+                            row: top,
+                            col: left,
+                            rowSpan: bottom - top,
+                            colSpan: right - left
+                        };
+                        if (!this.#fits(placement, withoutMoving)) {
+                            continue;
+                        }
+                        const score = [
+                            -(placement.rowSpan * placement.colSpan),
+                            Math.abs(placement.colSpan / placement.rowSpan - requestedRatio),
+                            Math.abs(placement.row - row) + Math.abs(placement.col - col),
+                            placement.row,
+                            placement.col
+                        ];
+                        if (!best || compareScores(score, best.score) < 0) {
+                            best = { placement, score };
+                        }
+                    }
+                }
+            }
+        }
+        if (!best) {
+            return null;
+        }
+        const result = cloneEntries(source);
+        result.set(id, best.placement);
+        return result;
     }
 
     /** Atomically replace committed placements with a validated preview. */

@@ -50,6 +50,42 @@ test('a 2x2 item moves into a free footprint', () => {
     assert.deepEqual(grid.get('large'), { row: 1, col: 2, rowSpan: 2, colSpan: 2 });
 });
 
+test('interactive move preview shrinks a large gauge into a narrow free hole', () => {
+    const grid = new GridLayout({ rows: 2, columns: 4 });
+    grid.add('large', { row: 0, col: 0, rowSpan: 2, colSpan: 2 });
+    grid.add('right', { row: 0, col: 3, rowSpan: 2, colSpan: 1 });
+    const drag = grid.beginDrag('large');
+    const preview = drag.preview({ row: 0, col: 2, fit: true, anchorRow: 0, anchorCol: 2 });
+
+    assert.equal(preview.valid, true);
+    assert.deepEqual(preview.placement, { row: 0, col: 2, rowSpan: 2, colSpan: 1 });
+    assert.deepEqual(grid.get('large'), { row: 0, col: 0, rowSpan: 2, colSpan: 2 });
+    assert.equal(drag.commit(), true);
+    assert.deepEqual(grid.get('large'), { row: 0, col: 2, rowSpan: 2, colSpan: 1 });
+});
+
+test('adaptive preview can reach an edge that only fits after resizing', () => {
+    const grid = new GridLayout({ rows: 3, columns: 4 });
+    grid.add('large', { row: 0, col: 0, rowSpan: 2, colSpan: 2 });
+    const drag = grid.beginDrag('large');
+    const preview = drag.preview({ row: 1, col: 3, fit: true, anchorRow: 1, anchorCol: 3 });
+
+    assert.equal(preview.valid, true);
+    assert.deepEqual(preview.placement, { row: 1, col: 3, rowSpan: 2, colSpan: 1 });
+});
+
+test('occupied pointer cells keep normal move reflow without adaptive resizing', () => {
+    const grid = new GridLayout({ rows: 2, columns: 4 });
+    grid.add('large', { row: 0, col: 0, rowSpan: 2, colSpan: 2 });
+    grid.add('target', { row: 0, col: 2, rowSpan: 2, colSpan: 2 });
+    const drag = grid.beginDrag('large');
+    const preview = drag.preview({ row: 0, col: 2, fit: true, anchorRow: 0, anchorCol: 2 });
+
+    assert.equal(preview.valid, true);
+    assert.deepEqual(preview.placement, { row: 0, col: 2, rowSpan: 2, colSpan: 2 });
+    assert.deepEqual(preview.entries.get('target'), { row: 0, col: 0, rowSpan: 2, colSpan: 2 });
+});
+
 test('collision with several 1x1 items reflows only as needed', () => {
     const grid = new GridLayout({ rows: 3, columns: 3 });
     grid.add('large', { row: 0, col: 0, rowSpan: 2, colSpan: 2 });

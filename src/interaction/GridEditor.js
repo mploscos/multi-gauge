@@ -202,6 +202,8 @@ export class GridEditor {
             initialRect: { ...rect },
             gridRow: initial.row,
             gridCol: initial.col,
+            anchorRow: initial.row,
+            anchorCol: initial.col,
             rowSpan: initial.rowSpan,
             colSpan: initial.colSpan,
             resize,
@@ -292,6 +294,8 @@ export class GridEditor {
         let nextCol = drag.gridCol;
         let nextRowSpan = drag.rowSpan;
         let nextColSpan = drag.colSpan;
+        const nextAnchorRow = Math.min(rows - 1, Math.max(0, Math.floor(drag.y / rowPitch)));
+        const nextAnchorCol = Math.min(columns - 1, Math.max(0, Math.floor(drag.x / columnPitch)));
 
         if (drag.resize) {
             if (drag.resizeX < 0) {
@@ -312,16 +316,20 @@ export class GridEditor {
             }
         } else {
             nextCol = this.#quantize(drag.initial.col + drag.dx / columnPitch,
-                drag.gridCol, 0, columns - drag.initial.colSpan);
+                drag.gridCol, 0, columns - 1);
             nextRow = this.#quantize(drag.initial.row + drag.dy / rowPitch,
-                drag.gridRow, 0, rows - drag.initial.rowSpan);
+                drag.gridRow, 0, rows - 1);
         }
         if (nextRow === drag.gridRow && nextCol === drag.gridCol
-            && nextRowSpan === drag.rowSpan && nextColSpan === drag.colSpan) {
+            && nextRowSpan === drag.rowSpan && nextColSpan === drag.colSpan
+            && (drag.resize
+                || (nextAnchorRow === drag.anchorRow && nextAnchorCol === drag.anchorCol))) {
             return;
         }
         drag.gridRow = nextRow;
         drag.gridCol = nextCol;
+        drag.anchorRow = nextAnchorRow;
+        drag.anchorCol = nextAnchorCol;
         drag.rowSpan = nextRowSpan;
         drag.colSpan = nextColSpan;
         drag.previewed = true;
@@ -332,7 +340,13 @@ export class GridEditor {
                 rowSpan: nextRowSpan,
                 colSpan: nextColSpan
             })
-            : drag.session.preview({ row: nextRow, col: nextCol });
+            : drag.session.preview({
+                row: nextRow,
+                col: nextCol,
+                fit: true,
+                anchorRow: nextAnchorRow,
+                anchorCol: nextAnchorCol
+            });
         drag.valid = preview.valid;
         this.#showPreview(preview.entries, preview.valid, {
             ...drag.initial,
